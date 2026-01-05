@@ -1,7 +1,7 @@
 // Service Worker for Mix Bag Inventory
 // Enables offline functionality and caching
 
-const CACHE_NAME = 'mixbag-v1';
+const CACHE_NAME = 'mixbag-v1.1.0';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',

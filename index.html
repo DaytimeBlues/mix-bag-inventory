@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Mix Bag Inventory Tracker - Track your product inventory and usage">
+    <meta name="theme-color" content="#c5a971">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Mix Bag">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>Mix Bag Inventory Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">📦</span>
+                    <h1>Mix Bag Inventory</h1>
+                </div>
+                <div class="header-actions">
+                    <button id="undoBtn" class="btn btn-warning" disabled>
+                        <span class="btn-icon">↩️</span>
+                        Undo
+                    </button>
+                    <button id="addProductBtn" class="btn btn-primary">
+                        <span class="btn-icon">✨</span>
+                        Add Flavour
+                    </button>
+                    <button id="viewLogBtn" class="btn btn-ghost">
+                        <span class="btn-icon">📋</span>
+                        History
+                    </button>
+                    <button id="settingsBtn" class="btn btn-ghost">
+                        <span class="btn-icon">⚙️</span>
+                        Settings
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Tab Navigation -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="bags">
+                    <span>🛍️</span> Bags
+                </button>
+                <button class="tab-btn" data-tab="boxes">
+                    <span>📦</span> Boxes
+                </button>
+            </div>
+
+            <!-- Bags Tab -->
+            <section class="inventory-section tab-content active" id="bagsTab">
+                <div class="table-container glass-card">
+                    <table class="inventory-table" id="inventoryTable">
+                        <thead>
+                            <tr>
+                                <th>Warnings</th>
+                                <th>Mix Bags</th>
+                                <th>Stock</th>
+                                <th>Used</th>
+                                <th>Ordered</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryBody">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                    <div class="table-empty" id="emptyState">
+                        <span class="empty-icon">📭</span>
+                        <p>No products yet. Click "Add Flavour" to get started!</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Boxes Tab -->
+            <section class="inventory-section tab-content" id="boxesTab">
+                <div class="table-container glass-card">
+                    <table class="inventory-table" id="boxesTable">
+                        <thead>
+                            <tr>
+                                <th>Warnings</th>
+                                <th>Mix Boxes</th>
+                                <th>Stock</th>
+                                <th>Used</th>
+                                <th>Made</th>
+                            </tr>
+                        </thead>
+                        <tbody id="boxesBody">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                    <div class="table-empty" id="boxesEmptyState">
+                        <span class="empty-icon">📭</span>
+                        <p>No boxes yet. Click "Add Flavour" to get started!</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Input Modal (for Used/Ordered) -->
+        <div class="modal-overlay" id="inputModal">
+            <div class="modal glass-card">
+                <div class="modal-header">
+                    <h3 id="inputModalTitle">Enter Amount</h3>
+                    <button class="btn btn-icon-only close-modal" aria-label="Close">✕</button>
+                </div>
+                <form id="inputForm">
+                    <input type="hidden" id="inputProductId">
+                    <input type="hidden" id="inputType">
+                    <div class="form-group">
+                        <label id="inputLabel">How many?</label>
+                        <input type="number" id="inputValue" min="1" placeholder="Enter amount" required autofocus>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-ghost close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Confirm</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add Product Modal -->
+        <div class="modal-overlay" id="addProductModal">
+            <div class="modal glass-card">
+                <div class="modal-header">
+                    <h3>Add New Flavour</h3>
+                    <button class="btn btn-icon-only close-modal" aria-label="Close">✕</button>
+                </div>
+                <form id="addProductForm">
+                    <div class="form-group">
+                        <label for="productName">Flavour Name</label>
+                        <input type="text" id="productName" placeholder="e.g., Caramel" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-ghost close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Flavour</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Transaction Log Modal -->
+        <div class="modal-overlay" id="transactionLogModal">
+            <div class="modal modal-lg glass-card">
+                <div class="modal-header">
+                    <h3>Transaction History</h3>
+                    <button class="btn btn-icon-only close-modal" aria-label="Close">✕</button>
+                </div>
+                <div class="log-filters">
+                    <select id="logFilterProduct">
+                        <option value="">All Flavours</option>
+                    </select>
+                    <select id="logFilterType">
+                        <option value="">All Types</option>
+                        <option value="used">Used</option>
+                        <option value="ordered">Ordered</option>
+                    </select>
+                </div>
+                <div class="log-table-container">
+                    <table class="log-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Mix Bag</th>
+                                <th>Type</th>
+                                <th>Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionLogBody">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                    <div class="table-empty" id="logEmptyState">
+                        <span class="empty-icon">📝</span>
+                        <p>No transactions recorded yet.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div class="modal-overlay" id="settingsModal">
+            <div class="modal glass-card">
+                <div class="modal-header">
+                    <h3>Settings</h3>
+                    <button class="btn btn-icon-only close-modal" aria-label="Close">✕</button>
+                </div>
+                <form id="settingsForm">
+                    <div class="form-group">
+                        <label for="reorderThreshold">Reorder Threshold</label>
+                        <p class="form-help">Products with stock at or below this level will show "REORDER" warning.</p>
+                        <input type="number" id="reorderThreshold" min="0" value="1000">
+                    </div>
+                    <div class="form-group">
+                        <label>Data Management</label>
+                        <div class="data-actions">
+                            <button type="button" id="exportDataBtn" class="btn btn-secondary">
+                                <span class="btn-icon">📤</span>
+                                Export Data
+                            </button>
+                            <button type="button" id="importDataBtn" class="btn btn-secondary">
+                                <span class="btn-icon">📥</span>
+                                Import Data
+                            </button>
+                            <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                        </div>
+                    </div>
+                    <div class="form-group danger-zone">
+                        <label>Danger Zone</label>
+                        <button type="button" id="clearDataBtn" class="btn btn-danger">
+                            <span class="btn-icon">🗑️</span>
+                            Clear All Data
+                        </button>
+                        <button type="button" id="resetDataBtn" class="btn btn-secondary" style="margin-top: 0.5rem;">
+                            <span class="btn-icon">🔄</span>
+                            Reset to Default Flavours
+                        </button>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-ghost close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Toast Container -->
+        <div class="toast-container" id="toastContainer"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

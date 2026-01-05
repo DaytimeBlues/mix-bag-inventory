@@ -3,6 +3,8 @@
  * A simple inventory management application
  */
 
+const APP_VERSION = '1.1.0';
+
 // ===========================================
 // Default Flavours
 // ===========================================
@@ -183,11 +185,19 @@ const Inventory = {
             .reduce((sum, t) => sum + t.quantity, 0);
     },
 
-    // Calculate current stock for a product: Stock = Ordered - Used
+    // Get total adjustments (initial stock, corrections)
+    getTotalAdjustment(productId) {
+        return state.transactions
+            .filter(t => t.productId === productId && t.type === 'adjustment')
+            .reduce((sum, t) => sum + t.quantity, 0);
+    },
+
+    // Calculate current stock for a product: Stock = Ordered + Adjustment - Used
     getStock(productId) {
         const totalOrdered = Inventory.getTotalOrdered(productId);
+        const totalAdjustment = Inventory.getTotalAdjustment(productId);
         const totalUsed = Inventory.getTotalUsed(productId);
-        return totalOrdered - totalUsed;
+        return totalOrdered + totalAdjustment - totalUsed;
     },
 
     // Get status based on stock level (uses product's own threshold)
@@ -294,11 +304,19 @@ const Inventory = {
             .reduce((sum, t) => sum + t.quantity, 0);
     },
 
-    // Calculate box stock: Stock = Made - Used
+    // Get total adjustments for a box
+    getBoxTotalAdjustment(boxId) {
+        return state.boxTransactions
+            .filter(t => t.boxId === boxId && t.type === 'adjustment')
+            .reduce((sum, t) => sum + t.quantity, 0);
+    },
+
+    // Calculate box stock: Stock = Made + Adjustment - Used
     getBoxStock(boxId) {
         const totalMade = Inventory.getBoxTotalMade(boxId);
+        const totalAdjustment = Inventory.getBoxTotalAdjustment(boxId);
         const totalUsed = Inventory.getBoxTotalUsed(boxId);
-        return totalMade - totalUsed;
+        return totalMade + totalAdjustment - totalUsed;
     },
 
     // Get box status: OK when 3+, MAKE when less than 3
@@ -412,9 +430,17 @@ const UI = {
             logFilterProduct: document.getElementById('logFilterProduct'),
             logFilterType: document.getElementById('logFilterType'),
 
+            // Version display
+            appVersion: document.getElementById('appVersion'),
+
             // Toast container
             toastContainer: document.getElementById('toastContainer')
         };
+
+        // Display version
+        if (this.elements.appVersion) {
+            this.elements.appVersion.textContent = `Version ${APP_VERSION}`;
+        }
     },
 
     // Render the inventory table
@@ -444,7 +470,7 @@ const UI = {
                     </span>
                 </td>
                 <td class="mix-bag-name">${this.escapeHtml(product.name)}</td>
-                <td class="stock-cell ${stock <= threshold ? 'stock-low' : 'stock-ok'}">
+                <td class="clickable-cell cell-stock ${stock <= threshold ? 'stock-low' : 'stock-ok'}" data-product-id="${product.id}" data-type="adjustment">
                     ${stock}
                 </td>
                 <td class="clickable-cell cell-used" data-product-id="${product.id}" data-type="used">
@@ -467,7 +493,7 @@ const UI = {
         });
     },
 
-    // Open input modal for Used or Ordered (bags)
+    // Open input modal for Used, Ordered, or Adjustment (bags)
     openInputModal(productId, type) {
         const product = state.products.find(p => p.id === productId);
         if (!product) return;
@@ -482,6 +508,10 @@ const UI = {
         if (type === 'used') {
             this.elements.inputModalTitle.textContent = `Record Usage - ${product.name}`;
             this.elements.inputLabel.textContent = 'How many have you used?';
+        } else if (type === 'adjustment') {
+            const currentStock = Inventory.getStock(product.id);
+            this.elements.inputModalTitle.textContent = `Set Stock - ${product.name}`;
+            this.elements.inputLabel.textContent = `Current stock: ${currentStock}. Enter amount to add:`;
         } else {
             this.elements.inputModalTitle.textContent = `Record Order - ${product.name}`;
             this.elements.inputLabel.textContent = 'How many have you ordered?';
@@ -607,7 +637,7 @@ const UI = {
                     </span>
                 </td>
                 <td class="mix-bag-name">${this.escapeHtml(box.name)}</td>
-                <td class="stock-cell ${stock < 3 ? 'stock-low' : 'stock-ok'}">
+                <td class="clickable-cell cell-stock ${stock < 3 ? 'stock-low' : 'stock-ok'}" data-box-id="${box.id}" data-type="adjustment">
                     ${stock}
                 </td>
                 <td class="clickable-cell cell-used" data-box-id="${box.id}" data-type="used">
@@ -630,7 +660,7 @@ const UI = {
         });
     },
 
-    // Open input modal for box Used or Made
+    // Open input modal for box Used, Made, or Adjustment
     openBoxInputModal(boxId, type) {
         const box = state.boxes.find(b => b.id === boxId);
         if (!box) return;
@@ -645,6 +675,10 @@ const UI = {
         if (type === 'used') {
             this.elements.inputModalTitle.textContent = `Record Usage - ${box.name}`;
             this.elements.inputLabel.textContent = 'How many boxes have you used?';
+        } else if (type === 'adjustment') {
+            const currentStock = Inventory.getBoxStock(box.id);
+            this.elements.inputModalTitle.textContent = `Set Stock - ${box.name}`;
+            this.elements.inputLabel.textContent = `Current stock: ${currentStock}. Enter amount to add:`;
         } else {
             this.elements.inputModalTitle.textContent = `Record Made - ${box.name}`;
             this.elements.inputLabel.textContent = 'How many boxes have you made?';
@@ -745,7 +779,7 @@ const Handlers = {
                 if (transaction) {
                     UI.refresh();
                     UI.closeModal(UI.elements.inputModal);
-                    const action = type === 'used' ? 'Used' : 'Made';
+                    const action = type === 'used' ? 'Used' : type === 'adjustment' ? 'Added' : 'Made';
                     UI.showToast(`${action} ${transaction.quantity} × ${transaction.boxName}`, 'success');
                 }
             } else {
@@ -753,7 +787,7 @@ const Handlers = {
                 if (transaction) {
                     UI.refresh();
                     UI.closeModal(UI.elements.inputModal);
-                    const action = type === 'used' ? 'Used' : 'Ordered';
+                    const action = type === 'used' ? 'Used' : type === 'adjustment' ? 'Added' : 'Ordered';
                     UI.showToast(`${action} ${transaction.quantity} × ${transaction.productName}`, 'success');
                 }
             }

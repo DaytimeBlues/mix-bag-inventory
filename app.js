@@ -3,7 +3,7 @@
  * A simple inventory management application
  */
 
-const APP_VERSION = '2.1.1';
+const APP_VERSION = '2.1.2';
 
 // ===========================================
 // Default Flavours
@@ -175,9 +175,22 @@ const Storage = {
         if (this.cloudEnabled && window.FirebaseStorage) {
             console.log('🔥 Starting Firebase real-time sync...');
             FirebaseStorage.startRealtimeSync((cloudData) => {
-                Storage.applyCloudData(cloudData);
-                if (typeof UI !== 'undefined') {
-                    UI.showToast('Synced from another device', 'info');
+                // Compare data richness before applying
+                const localCount = state.transactions.length + state.boxTransactions.length + state.tasks.length;
+                const cloudCount = (cloudData.transactions?.length || 0) +
+                    (cloudData.boxTransactions?.length || 0) +
+                    (cloudData.tasks?.length || 0);
+
+                console.log(`🔄 Sync check - Local: ${localCount}, Cloud: ${cloudCount}`);
+
+                // Only apply if cloud has MORE data (not equal or less)
+                if (cloudCount > localCount) {
+                    Storage.applyCloudData(cloudData);
+                    if (typeof UI !== 'undefined') {
+                        UI.showToast('Synced from another device', 'info');
+                    }
+                } else {
+                    console.log('⏭️ Ignoring sync - local data is richer or equal');
                 }
             });
         }

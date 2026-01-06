@@ -1,12 +1,13 @@
 // Service Worker for Mix Bag Inventory
 // Enables offline functionality and caching
 
-const CACHE_NAME = 'mixbag-v1.1.0';
+const CACHE_NAME = 'mixbag-v2.0.0';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
     '/styles.css',
     '/app.js',
+    '/firebase-config.js',
     '/manifest.json',
     '/icon-192.png',
     '/icon-512.png'

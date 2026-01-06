@@ -3,7 +3,7 @@
  * A simple inventory management application
  */
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.1';
 
 // ===========================================
 // Default Flavours
@@ -43,6 +43,7 @@ const state = {
     transactions: [],
     boxes: [],
     boxTransactions: [],
+    tasks: [],
     currentTab: 'bags',
     settings: {
         reorderThreshold: 1000
@@ -55,6 +56,7 @@ const STORAGE_KEYS = {
     TRANSACTIONS: 'mixbag_transactions',
     BOXES: 'mixbag_boxes',
     BOX_TRANSACTIONS: 'mixbag_box_transactions',
+    TASKS: 'mixbag_tasks',
     SETTINGS: 'mixbag_settings'
 };
 
@@ -90,6 +92,7 @@ const Storage = {
         state.transactions = Storage.load(STORAGE_KEYS.TRANSACTIONS) || [];
         state.boxes = Storage.load(STORAGE_KEYS.BOXES) || [];
         state.boxTransactions = Storage.load(STORAGE_KEYS.BOX_TRANSACTIONS) || [];
+        state.tasks = Storage.load(STORAGE_KEYS.TASKS) || [];
         state.settings = Storage.load(STORAGE_KEYS.SETTINGS) || { reorderThreshold: 1000 };
 
         // Initialize with default flavours if no products exist
@@ -123,6 +126,7 @@ const Storage = {
         Storage.save(STORAGE_KEYS.TRANSACTIONS, state.transactions);
         Storage.save(STORAGE_KEYS.BOXES, state.boxes);
         Storage.save(STORAGE_KEYS.BOX_TRANSACTIONS, state.boxTransactions);
+        Storage.save(STORAGE_KEYS.TASKS, state.tasks);
         Storage.save(STORAGE_KEYS.SETTINGS, state.settings);
 
         // Sync to cloud if available
@@ -137,6 +141,7 @@ const Storage = {
                 transactions: state.transactions,
                 boxes: state.boxes,
                 boxTransactions: state.boxTransactions,
+                tasks: state.tasks,
                 settings: state.settings
             });
         }
@@ -148,6 +153,7 @@ const Storage = {
         if (data.transactions) state.transactions = data.transactions;
         if (data.boxes) state.boxes = data.boxes;
         if (data.boxTransactions) state.boxTransactions = data.boxTransactions;
+        if (data.tasks) state.tasks = data.tasks;
         if (data.settings) state.settings = data.settings;
 
         // Save to localStorage for offline access
@@ -155,6 +161,7 @@ const Storage = {
         Storage.save(STORAGE_KEYS.TRANSACTIONS, state.transactions);
         Storage.save(STORAGE_KEYS.BOXES, state.boxes);
         Storage.save(STORAGE_KEYS.BOX_TRANSACTIONS, state.boxTransactions);
+        Storage.save(STORAGE_KEYS.TASKS, state.tasks);
         Storage.save(STORAGE_KEYS.SETTINGS, state.settings);
 
         // Refresh UI
@@ -432,6 +439,132 @@ const Inventory = {
 };
 
 // ===========================================
+// Tasks Management
+// ===========================================
+const Tasks = {
+    // Add a new task
+    add(text, isAuto = false, sourceId = null) {
+        const task = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            text: text.trim(),
+            completed: false,
+            isAuto: isAuto, // true if generated from low stock
+            sourceId: sourceId, // ID of product/box that triggered this
+            createdAt: new Date().toISOString(),
+            completedAt: null
+        };
+        state.tasks.push(task);
+        Storage.save(STORAGE_KEYS.TASKS, state.tasks);
+        Storage.syncToCloud();
+        return task;
+    },
+
+    // Complete a task
+    complete(taskId) {
+        const task = state.tasks.find(t => t.id === taskId);
+        if (task) {
+            task.completed = true;
+            task.completedAt = new Date().toISOString();
+            Storage.save(STORAGE_KEYS.TASKS, state.tasks);
+            Storage.syncToCloud();
+            // Trigger confetti!
+            Tasks.celebrate();
+            return task;
+        }
+        return null;
+    },
+
+    // Uncomplete a task (move back to pending)
+    uncomplete(taskId) {
+        const task = state.tasks.find(t => t.id === taskId);
+        if (task) {
+            task.completed = false;
+            task.completedAt = null;
+            Storage.save(STORAGE_KEYS.TASKS, state.tasks);
+            Storage.syncToCloud();
+            return task;
+        }
+        return null;
+    },
+
+    // Delete a task
+    delete(taskId) {
+        state.tasks = state.tasks.filter(t => t.id !== taskId);
+        Storage.save(STORAGE_KEYS.TASKS, state.tasks);
+        Storage.syncToCloud();
+    },
+
+    // Get pending tasks
+    getPending() {
+        return state.tasks.filter(t => !t.completed).sort((a, b) =>
+            new Date(b.createdAt) - new Date(a.createdAt)
+        );
+    },
+
+    // Get completed tasks
+    getCompleted() {
+        return state.tasks.filter(t => t.completed).sort((a, b) =>
+            new Date(b.completedAt) - new Date(a.completedAt)
+        );
+    },
+
+    // Check for low stock and create auto-tasks
+    checkLowStock() {
+        // Check bags
+        state.products.forEach(product => {
+            const stock = Inventory.getStock(product.id);
+            const status = Inventory.getStatus(stock, product);
+
+            if (status === 'reorder') {
+                // Check if we already have an auto-task for this
+                const existingTask = state.tasks.find(t =>
+                    t.isAuto && t.sourceId === product.id && !t.completed
+                );
+
+                if (!existingTask) {
+                    Tasks.add(`📦 Reorder ${product.name} (low stock)`, true, product.id);
+                }
+            }
+        });
+
+        // Check boxes
+        state.boxes.forEach(box => {
+            const stock = Inventory.getBoxStock(box.id);
+            const status = Inventory.getBoxStatus(stock, box);
+
+            if (status === 'make') {
+                const existingTask = state.tasks.find(t =>
+                    t.isAuto && t.sourceId === box.id && !t.completed
+                );
+
+                if (!existingTask) {
+                    Tasks.add(`📦 Make ${box.name} boxes (low stock)`, true, box.id);
+                }
+            }
+        });
+    },
+
+    // 🎉 Confetti celebration!
+    celebrate() {
+        const confettiCount = 100;
+        const colors = ['#c5a971', '#4a9d4a', '#f0ebe3', '#b89860', '#ffffff'];
+
+        for (let i = 0; i < confettiCount; i++) {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.left = Math.random() * 100 + 'vw';
+            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+            confetti.style.animationDelay = Math.random() * 0.5 + 's';
+            document.body.appendChild(confetti);
+
+            // Remove after animation
+            setTimeout(() => confetti.remove(), 4000);
+        }
+    }
+};
+
+// ===========================================
 // UI Components
 // ===========================================
 const UI = {
@@ -494,7 +627,15 @@ const UI = {
             appVersion: document.getElementById('appVersion'),
 
             // Toast container
-            toastContainer: document.getElementById('toastContainer')
+            toastContainer: document.getElementById('toastContainer'),
+
+            // Tasks
+            tasksTab: document.getElementById('tasksTab'),
+            pendingTasksList: document.getElementById('pendingTasksList'),
+            completedTasksList: document.getElementById('completedTasksList'),
+            tasksEmptyState: document.getElementById('tasksEmptyState'),
+            newTaskInput: document.getElementById('newTaskInput'),
+            addTaskBtn: document.getElementById('addTaskBtn')
         };
 
         // Display version
@@ -792,20 +933,102 @@ const UI = {
         if (tabName === 'bags') {
             this.elements.bagsTab.classList.add('active');
             this.elements.boxesTab.classList.remove('active');
-        } else {
+            this.elements.tasksTab.classList.remove('active');
+        } else if (tabName === 'boxes') {
             this.elements.bagsTab.classList.remove('active');
             this.elements.boxesTab.classList.add('active');
+            this.elements.tasksTab.classList.remove('active');
+        } else if (tabName === 'tasks') {
+            this.elements.bagsTab.classList.remove('active');
+            this.elements.boxesTab.classList.remove('active');
+            this.elements.tasksTab.classList.add('active');
         }
 
         this.updateUndoButton();
+    },
+
+    // Render tasks list
+    renderTasks() {
+        const pendingList = this.elements.pendingTasksList;
+        const completedList = this.elements.completedTasksList;
+
+        if (!pendingList || !completedList) return;
+
+        pendingList.innerHTML = '';
+        completedList.innerHTML = '';
+
+        const pendingTasks = Tasks.getPending();
+        const completedTasks = Tasks.getCompleted();
+
+        // Show/hide empty state
+        if (pendingTasks.length === 0) {
+            this.elements.tasksEmptyState.classList.remove('hidden');
+        } else {
+            this.elements.tasksEmptyState.classList.add('hidden');
+        }
+
+        // Render pending tasks
+        pendingTasks.forEach(task => {
+            const li = document.createElement('li');
+            li.className = 'task-item' + (task.isAuto ? ' task-auto' : '');
+            li.innerHTML = `
+                <button class="task-checkbox" data-task-id="${task.id}" aria-label="Complete task">
+                    <span class="checkbox-icon"></span>
+                </button>
+                <span class="task-text">${this.escapeHtml(task.text)}</span>
+                <button class="task-delete" data-task-id="${task.id}" aria-label="Delete task">✕</button>
+            `;
+            pendingList.appendChild(li);
+        });
+
+        // Render completed tasks
+        completedTasks.slice(0, 10).forEach(task => { // Show last 10 completed
+            const li = document.createElement('li');
+            li.className = 'task-item task-completed' + (task.isAuto ? ' task-auto' : '');
+            li.innerHTML = `
+                <button class="task-checkbox checked" data-task-id="${task.id}" aria-label="Uncomplete task">
+                    <span class="checkbox-icon">✓</span>
+                </button>
+                <span class="task-text">${this.escapeHtml(task.text)}</span>
+                <button class="task-delete" data-task-id="${task.id}" aria-label="Delete task">✕</button>
+            `;
+            completedList.appendChild(li);
+        });
+
+        // Attach event listeners
+        pendingList.querySelectorAll('.task-checkbox').forEach(btn => {
+            btn.addEventListener('click', () => {
+                Tasks.complete(btn.dataset.taskId);
+                this.renderTasks();
+                UI.showToast('Task completed! 🎉', 'success');
+            });
+        });
+
+        completedList.querySelectorAll('.task-checkbox').forEach(btn => {
+            btn.addEventListener('click', () => {
+                Tasks.uncomplete(btn.dataset.taskId);
+                this.renderTasks();
+            });
+        });
+
+        document.querySelectorAll('.task-delete').forEach(btn => {
+            btn.addEventListener('click', () => {
+                Tasks.delete(btn.dataset.taskId);
+                this.renderTasks();
+            });
+        });
     },
 
     // Refresh all UI components
     refresh() {
         this.renderInventory();
         this.renderBoxes();
+        this.renderTasks();
         this.renderProductSelect();
         this.updateUndoButton();
+
+        // Check for low stock and create auto-tasks
+        Tasks.checkLowStock();
     }
 };
 
@@ -820,6 +1043,32 @@ const Handlers = {
                 UI.switchTab(btn.dataset.tab);
             });
         });
+
+        // Add task
+        if (UI.elements.addTaskBtn) {
+            UI.elements.addTaskBtn.addEventListener('click', () => {
+                const text = UI.elements.newTaskInput.value.trim();
+                if (text) {
+                    Tasks.add(text);
+                    UI.elements.newTaskInput.value = '';
+                    UI.renderTasks();
+                    UI.showToast('Task added!', 'success');
+                }
+            });
+
+            // Also allow Enter key
+            UI.elements.newTaskInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const text = UI.elements.newTaskInput.value.trim();
+                    if (text) {
+                        Tasks.add(text);
+                        UI.elements.newTaskInput.value = '';
+                        UI.renderTasks();
+                        UI.showToast('Task added!', 'success');
+                    }
+                }
+            });
+        }
 
         // Input form submission (Used/Ordered/Made)
         UI.elements.inputForm.addEventListener('submit', (e) => {
@@ -1060,18 +1309,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Check if cloud has data
         const cloudData = await FirebaseStorage.loadFromCloud();
 
-        if (cloudData && cloudData.products && cloudData.products.length > 0) {
-            // Cloud has data - use it
+        // Count transactions to determine which data is "richer"
+        const localTransactionCount = state.transactions.length + state.boxTransactions.length + state.tasks.length;
+        const cloudTransactionCount = cloudData ?
+            (cloudData.transactions?.length || 0) + (cloudData.boxTransactions?.length || 0) + (cloudData.tasks?.length || 0) : 0;
+
+        console.log(`📊 Local: ${localTransactionCount} transactions, Cloud: ${cloudTransactionCount} transactions`);
+
+        if (cloudData && cloudTransactionCount > localTransactionCount) {
+            // Cloud has more data - use it
             Storage.applyCloudData(cloudData);
-            console.log('📥 Loaded data from cloud');
-        } else if (state.products.length > 0) {
-            // No cloud data but we have local data - upload it
+            console.log('📥 Loaded richer data from cloud');
+            UI.showToast('☁️ Synced from cloud', 'success');
+        } else if (localTransactionCount > 0) {
+            // Local has more or equal data - upload it
             Storage.syncToCloud();
             console.log('📤 Uploaded local data to cloud');
+            UI.showToast('☁️ Cloud sync enabled', 'success');
+        } else if (cloudData && cloudData.products?.length > 0) {
+            // Both empty but cloud has products, use cloud
+            Storage.applyCloudData(cloudData);
+            UI.showToast('☁️ Cloud sync enabled', 'success');
+        } else {
+            UI.showToast('☁️ Cloud sync enabled', 'success');
         }
 
         // Start real-time sync for future changes
         Storage.startCloudSync();
-        UI.showToast('☁️ Cloud sync enabled', 'success');
     }
 });

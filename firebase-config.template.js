@@ -1,16 +1,23 @@
 /**
- * Firebase Configuration for Mix Bag Inventory
- * Cloud sync for real-time data sharing across devices
+ * Firebase Configuration Template for Mix Bag Inventory
+ * 
+ * SETUP INSTRUCTIONS:
+ * 1. Copy this file to 'firebase-config.js'
+ * 2. Replace the placeholder values with your Firebase credentials
+ * 3. Do NOT commit firebase-config.js to version control
+ * 
+ * Get your Firebase config from: https://console.firebase.google.com
+ * Project Settings > General > Your apps > Firebase SDK snippet
  */
 
-// Firebase configuration
+// Firebase configuration - REPLACE WITH YOUR VALUES
 const firebaseConfig = {
-    apiKey: "AIzaSyBblBMrZd5XugRFj5EwOtTrKwpilKscd8k",
-    authDomain: "stock-tracker-33fa8.firebaseapp.com",
-    projectId: "stock-tracker-33fa8",
-    storageBucket: "stock-tracker-33fa8.firebasestorage.app",
-    messagingSenderId: "704165901798",
-    appId: "1:704165901798:web:caf9e6dd46dd95b1485227"
+    apiKey: "YOUR_API_KEY_HERE",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.firebasestorage.app",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
 };
 
 // Initialize Firebase
